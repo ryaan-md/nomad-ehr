@@ -1,0 +1,5 @@
+{
+  "name": "Nomad EHR",
+  "description": "A decentralized, mobile-first electronic health record system designed for crisis zones. Features git-style versioning and offline-first design principles.",
+  "requestFramePermissions": []
+}
