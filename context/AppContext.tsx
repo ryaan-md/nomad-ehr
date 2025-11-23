@@ -25,6 +25,7 @@ interface AppContextType {
   updateMedicalEntry: (sectionKey: keyof PatientRecord, entryId: string, newValue: string, newKey?: string) => Promise<void>;
   addMedicalEntry: (sectionKey: keyof PatientRecord, entryKey: string, entryValue: string) => Promise<void>;
   batchUpdateMedicalEntries: (sectionKey: keyof PatientRecord, updates: Array<{ id?: string; key: string; value: string }>) => Promise<void>;
+  syncRecord: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
@@ -458,6 +459,37 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
+  const syncRecord = async () => {
+    if (!accessKeys) {
+      throw new Error('No access keys available');
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Refresh record from Firebase
+      const refreshedRecord = await findRecordByAccessKeys(
+        accessKeys.name,
+        accessKeys.dob,
+        accessKeys.threeWords
+      );
+
+      if (!refreshedRecord) {
+        throw new Error('Record not found');
+      }
+
+      // Update local state with refreshed record
+      setRecord(refreshedRecord);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to sync record. Please try again.';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       currentView,
@@ -475,6 +507,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       updateMedicalEntry,
       addMedicalEntry,
       batchUpdateMedicalEntries,
+      syncRecord,
       isLoading,
       error
     }}>

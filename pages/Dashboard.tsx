@@ -5,12 +5,13 @@ import { Notes } from './dashboard/Notes';
 import { History } from './dashboard/History';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
-import { LayoutDashboard, FileText, GitCommit, UserCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, GitCommit, UserCircle, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const Dashboard = () => {
-  const { activeTab, setActiveTab, record, emergencyMode } = useApp();
+  const { activeTab, setActiveTab, record, emergencyMode, syncRecord, isLoading } = useApp();
   const [isRevealing, setIsRevealing] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     // Start revealing content after component mounts
@@ -20,6 +21,17 @@ export const Dashboard = () => {
 
     return () => clearTimeout(revealTimer);
   }, []);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await syncRecord();
+    } catch (err) {
+      // Error is handled by context
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   return (
     <div className={`min-h-screen flex flex-col ${emergencyMode ? 'bg-black' : 'bg-nomad-light'}`}>
@@ -51,11 +63,48 @@ export const Dashboard = () => {
               </p>
             </div>
           </div>
-          <div className={`px-4 py-2 rounded-full text-sm font-medium border flex items-center gap-2 ${
-            emergencyMode ? 'bg-black border-yellow-600 text-yellow-400' : 'bg-white border-gray-200 text-gray-600'
-          }`}>
-             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-             Synced just now
+          <div className="flex flex-col items-end gap-2">
+            <div className={`px-4 py-2 rounded-full text-sm font-medium border flex items-center gap-2 ${
+              emergencyMode ? 'bg-black border-yellow-600 text-yellow-400' : 'bg-white border-gray-200 text-gray-600'
+            }`}>
+              <motion.div 
+                className="w-2 h-2 rounded-full bg-green-500"
+                animate={isSyncing || isLoading ? { 
+                  scale: [1, 1.5, 1],
+                  opacity: [1, 0.5, 1]
+                } : { 
+                  scale: 1,
+                  opacity: 1
+                }}
+                transition={{ 
+                  duration: 1,
+                  repeat: isSyncing || isLoading ? Infinity : 0,
+                  ease: "easeInOut"
+                }}
+              />
+              Synced just now
+            </div>
+            <button
+              onClick={handleSync}
+              disabled={isSyncing || isLoading}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                emergencyMode 
+                  ? 'bg-black border-yellow-600 text-yellow-400 hover:bg-yellow-900/30' 
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <motion.div
+                animate={isSyncing || isLoading ? { rotate: 360 } : { rotate: 0 }}
+                transition={{ 
+                  duration: 1,
+                  repeat: isSyncing || isLoading ? Infinity : 0,
+                  ease: "linear"
+                }}
+              >
+                <RefreshCw size={14} />
+              </motion.div>
+              {isSyncing || isLoading ? 'Syncing...' : 'Sync'}
+            </button>
           </div>
         </header>
 
