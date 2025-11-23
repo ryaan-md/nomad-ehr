@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Overview } from './dashboard/Overview';
 import { Notes } from './dashboard/Notes';
@@ -10,22 +10,65 @@ import { motion } from 'framer-motion';
 
 export const Dashboard = () => {
   const { activeTab, setActiveTab, record, emergencyMode, syncRecord, isLoading } = useApp();
-  const [isRevealing, setIsRevealing] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isSynced, setIsSynced] = useState(false);
+  const lastSyncedRecordRef = useRef<string>('');
 
+  // Track record changes - if record changes after being synced, mark as not synced
   useEffect(() => {
-    // Start revealing content after component mounts
-    const revealTimer = setTimeout(() => {
-      setIsRevealing(false);
-    }, 1000); // Blur for 1 second before revealing
+    // Skip change detection while syncing
+    if (isSyncing) return;
 
-    return () => clearTimeout(revealTimer);
-  }, []);
+    // Create a simple hash of the record to detect changes
+    const recordHash = JSON.stringify({
+      notesCount: record.notes.length,
+      commitsCount: record.commits.length,
+      lastCommitHash: record.commits[0]?.hash || '',
+      lastCommitTimestamp: record.commits[0]?.timestamp || ''
+    });
+
+    // Initialize on first load
+    if (lastSyncedRecordRef.current === '') {
+      lastSyncedRecordRef.current = recordHash;
+      setIsSynced(false); // Start as not synced
+      return;
+    }
+
+    // If record changed and we were synced, mark as not synced
+    // (This happens when user makes a change like adding a note)
+    if (lastSyncedRecordRef.current !== recordHash) {
+      // Only mark as not synced if we were previously synced
+      // (Don't override if we're already not synced)
+      if (isSynced) {
+        setIsSynced(false);
+      }
+    }
+  }, [record, isSynced, isSyncing]);
+
+  // Update sync reference after sync completes and record updates
+  useEffect(() => {
+    // When sync completes (isSyncing goes from true to false) and we're marked as synced,
+    // update the reference to the current record state
+    if (!isSyncing && isSynced) {
+      const recordHash = JSON.stringify({
+        notesCount: record.notes.length,
+        commitsCount: record.commits.length,
+        lastCommitHash: record.commits[0]?.hash || '',
+        lastCommitTimestamp: record.commits[0]?.timestamp || ''
+      });
+      // Only update if it's different (record has been refreshed from sync)
+      if (lastSyncedRecordRef.current !== recordHash) {
+        lastSyncedRecordRef.current = recordHash;
+      }
+    }
+  }, [isSyncing, isSynced, record]);
 
   const handleSync = async () => {
     setIsSyncing(true);
     try {
       await syncRecord();
+      // Mark as synced - the useEffect will update the reference when record updates
+      setIsSynced(true);
     } catch (err) {
       // Error is handled by context
     } finally {
@@ -37,17 +80,7 @@ export const Dashboard = () => {
     <div className={`min-h-screen flex flex-col ${emergencyMode ? 'bg-black' : 'bg-nomad-light'}`}>
       <Navbar />
       
-      <motion.div 
-        className="flex-grow container mx-auto max-w-5xl p-4 md:p-6"
-        animate={{
-          filter: isRevealing ? 'blur(20px)' : 'blur(0px)',
-          opacity: isRevealing ? 0.3 : 1,
-        }}
-        transition={{
-          duration: 0.8,
-          ease: 'easeOut'
-        }}
-      >
+      <div className="flex-grow container mx-auto max-w-5xl p-4 md:p-6">
         {/* Patient Header */}
         <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
@@ -68,7 +101,7 @@ export const Dashboard = () => {
               emergencyMode ? 'bg-black border-yellow-600 text-yellow-400' : 'bg-white border-gray-200 text-gray-600'
             }`}>
               <motion.div 
-                className="w-2 h-2 rounded-full bg-green-500"
+                className={`w-2 h-2 rounded-full ${isSynced ? 'bg-green-500' : 'bg-orange-500'}`}
                 animate={isSyncing || isLoading ? { 
                   scale: [1, 1.5, 1],
                   opacity: [1, 0.5, 1]
@@ -82,7 +115,7 @@ export const Dashboard = () => {
                   ease: "easeInOut"
                 }}
               />
-              Synced just now
+              {isSynced ? 'Synced' : 'Not synced'}
             </div>
             <button
               onClick={handleSync}
@@ -141,7 +174,7 @@ export const Dashboard = () => {
           {activeTab === 'notes' && <Notes />}
           {activeTab === 'history' && <History />}
         </motion.div>
-      </motion.div>
+      </div>
 
       <Footer />
     </div>
